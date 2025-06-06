@@ -9,9 +9,13 @@ def get_domain(db: Session, domain_id: int) -> Optional[Domain]:
     """Get a domain by ID"""
     return db.query(Domain).filter(Domain.id == domain_id).first()
 
-def get_domain_by_name(db: Session, name: str) -> Optional[Domain]:
+def get_domain_by_code(db: Session, domain_code: str) -> Optional[Domain]:
+    """Get a domain by code"""
+    return db.query(Domain).filter(Domain.domain_code == domain_code).first()
+
+def get_domain_by_name(db: Session, domain_name: str) -> Optional[Domain]:
     """Get a domain by name"""
-    return db.query(Domain).filter(Domain.name == name).first()
+    return db.query(Domain).filter(Domain.domain_name == domain_name).first()
 
 def get_domains(db: Session, skip: int = 0, limit: int = 100) -> List[Domain]:
     """Get all domains with pagination"""
@@ -19,17 +23,22 @@ def get_domains(db: Session, skip: int = 0, limit: int = 100) -> List[Domain]:
 
 def create_domain(db: Session, domain: DomainCreate) -> Domain:
     """Create a new domain"""
-    # Check if domain name already exists
-    db_domain = get_domain_by_name(db, name=domain.name)
+    # Check if domain code already exists
+    db_domain = get_domain_by_code(db, domain_code=domain.domain_code)
     if db_domain:
+        raise HTTPException(status_code=400, detail="Domain code already registered")
+    
+    # Check if domain name already exists
+    if get_domain_by_name(db, domain_name=domain.domain_name):
         raise HTTPException(status_code=400, detail="Domain name already registered")
     
     # Create new domain
     db_domain = Domain(
-        name=domain.name,
+        domain_name=domain.domain_name,
+        domain_code=domain.domain_code,
         description=domain.description,
-        config=domain.config,
-        is_active=domain.is_active
+        status=domain.status,
+        action=domain.action
     )
     db.add(db_domain)
     db.commit()
@@ -44,9 +53,14 @@ def update_domain(db: Session, domain_id: int, domain: DomainUpdate) -> Domain:
     
     update_data = domain.dict(exclude_unset=True)
     
+    # Check code uniqueness if being updated
+    if "domain_code" in update_data and update_data["domain_code"] != db_domain.domain_code:
+        if get_domain_by_code(db, domain_code=update_data["domain_code"]):
+            raise HTTPException(status_code=400, detail="Domain code already registered")
+    
     # Check name uniqueness if being updated
-    if "name" in update_data and update_data["name"] != db_domain.name:
-        if get_domain_by_name(db, name=update_data["name"]):
+    if "domain_name" in update_data and update_data["domain_name"] != db_domain.domain_name:
+        if get_domain_by_name(db, domain_name=update_data["domain_name"]):
             raise HTTPException(status_code=400, detail="Domain name already registered")
     
     for key, value in update_data.items():

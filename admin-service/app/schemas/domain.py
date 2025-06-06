@@ -1,26 +1,28 @@
 from pydantic import BaseModel, Field
-from typing import Optional, List
+from typing import Optional
 from datetime import datetime
 
 class DomainBase(BaseModel):
-    name: str = Field(..., min_length=3, max_length=100)
-    description: Optional[str] = None
-    config: Optional[str] = None  # JSON stored as text
-    is_active: Optional[bool] = True
+    domain_name: str = Field(..., min_length=3, max_length=100)  # Updated from 'name'
+    domain_code: str = Field(..., min_length=3, max_length=50)   # Added 'domain_code'
+    description: Optional[str] = None  # Remains unchanged
+    status: Optional[bool] = True  # Renamed from 'is_active'
+    action: Optional[str] = None  # Added 'action'
 
 class DomainCreate(DomainBase):
-    pass
+    pass  # No changes required
 
 class DomainUpdate(BaseModel):
-    name: Optional[str] = Field(None, min_length=3, max_length=100)
+    domain_name: Optional[str] = Field(None, min_length=3, max_length=100)  # Updated from 'name'
+    domain_code: Optional[str] = Field(None, min_length=3, max_length=50)   # Added 'domain_code'
     description: Optional[str] = None
-    config: Optional[str] = None
-    is_active: Optional[bool] = None
+    status: Optional[bool] = None  # Renamed from 'is_active'
+    action: Optional[str] = None  # Added 'action'
 
 class DomainResponse(DomainBase):
-    id: int
-    created_at: datetime
-    updated_at: Optional[datetime] = None
+    id: int  # Remains unchanged
+    created_at: datetime  # Remains unchanged
+    updated_at: Optional[datetime] = None  # Remains unchanged
 
     class Config:
-        orm_mode = True
+        orm_mode = True  # Updated from 'from_attributes' for compatibility with older Pydantic versions
