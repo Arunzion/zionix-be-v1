@@ -1,0 +1,127 @@
+apiVersion: install.istio.io/v1alpha1
+kind: IstioOperator
+metadata:
+  name: zionix-istio-control-plane
+spec:
+  profile: default
+  components:
+    egressGateways:
+      - name: istio-egressgateway
+        enabled: true
+    ingressGateways:
+      - name: istio-ingressgateway
+        enabled: true
+    pilot:
+      enabled: true
+  values:
+    global:
+      proxy:
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: Gateway
+metadata:
+  name: zionix-gateway
+spec:
+  selector:
+    istio: ingressgateway
+  servers:
+    - port:
+        number: 80
+        name: http
+        protocol: HTTP
+      hosts:
+        - "*"
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: admin-service-vs
+spec:
+  hosts:
+    - "*"
+  gateways:
+    - zionix-gateway
+  http:
+    - match:
+        - uri:
+            prefix: /api/admin
+      route:
+        - destination:
+            host: admin-service
+            port:
+              number: 8000
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: auth-service-vs
+spec:
+  hosts:
+    - "*"
+  gateways:
+    - zionix-gateway
+  http:
+    - match:
+        - uri:
+            prefix: /api/auth
+      route:
+        - destination:
+            host: auth-service
+            port:
+              number: 8000
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: DestinationRule
+metadata:
+  name: admin-service-dr
+spec:
+  host: admin-service
+  trafficPolicy:
+    loadBalancer:
+      simple: ROUND_ROBIN
+    connectionPool:
+      tcp:
+        maxConnections: 100
+      http:
+        http2MaxRequests: 1000
+        maxRequestsPerConnection: 10
+    outlierDetection:
+      consecutive5xxErrors: 5
+      interval: 30s
+      baseEjectionTime: 30s
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: DestinationRule
+metadata:
+  name: auth-service-dr
+spec:
+  host: auth-service
+  trafficPolicy:
+    loadBalancer:
+      simple: ROUND_ROBIN
+    connectionPool:
+      tcp:
+        maxConnections: 100
+      http:
+        http2MaxRequests: 1000
+        maxRequestsPerConnection: 10
+    outlierDetection:
+      consecutive5xxErrors: 5
+      interval: 30s
+      baseEjectionTime: 30s
+---
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: default
+  namespace: zionix
+spec:
+  mtls:
+    mode: STRICT

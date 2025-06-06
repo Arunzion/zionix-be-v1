@@ -1,0 +1,62 @@
+apiVersion: jaegertracing.io/v1
+kind: Jaeger
+metadata:
+  name: zionix-jaeger
+  namespace: zionix
+spec:
+  strategy: production
+  storage:
+    type: elasticsearch
+    options:
+      es:
+        server-urls: http://elasticsearch:9200
+  ingress:
+    enabled: true
+    hosts:
+      - jaeger.zionix.local
+  ui:
+    options:
+      dependencies:
+        menuEnabled: true
+      tracking:
+        gaID: UA-000000-2
+      menu:
+        - label: "About Zionix"
+          items:
+            - label: "Documentation"
+              url: "https://docs.zionix.com"
+  agent:
+    strategy: DaemonSet
+  annotations:
+    scheduler.alpha.kubernetes.io/critical-pod: ""
+  collector:
+    annotations:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "14268"
+    resources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: jaeger-query
+  namespace: zionix
+  labels:
+    app: jaeger
+    app.kubernetes.io/name: jaeger
+    app.kubernetes.io/component: query
+spec:
+  ports:
+  - name: query-http
+    port: 16686
+    protocol: TCP
+    targetPort: 16686
+  selector:
+    app.kubernetes.io/name: jaeger
+    app.kubernetes.io/component: all-in-one
+  type: ClusterIP

@@ -1,0 +1,308 @@
+# Observability Configuration for Zionix Microservices
+# This configuration sets up monitoring, logging, and tracing for all microservices
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: zionix-observability
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+    scrape_configs:
+      - job_name: 'kubernetes-pods'
+        kubernetes_sd_configs:
+          - role: pod
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+            action: keep
+            regex: true
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+            action: replace
+            target_label: __metrics_path__
+            regex: (.+)
+          - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+            action: replace
+            regex: ([^:]+)(?::\d+)?;(\d+)
+            replacement: $1:$2
+            target_label: __address__
+          - action: labelmap
+            regex: __meta_kubernetes_pod_label_(.+)
+          - source_labels: [__meta_kubernetes_namespace]
+            action: replace
+            target_label: kubernetes_namespace
+          - source_labels: [__meta_kubernetes_pod_name]
+            action: replace
+            target_label: kubernetes_pod_name
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboards
+  namespace: zionix-observability
+data:
+  microservices-dashboard.json: |
+    {
+      "annotations": {
+        "list": [
+          {
+            "builtIn": 1,
+            "datasource": "-- Grafana --",
+            "enable": true,
+            "hide": true,
+            "iconColor": "rgba(0, 211, 255, 1)",
+            "name": "Annotations & Alerts",
+            "type": "dashboard"
+          }
+        ]
+      },
+      "editable": true,
+      "gnetId": null,
+      "graphTooltip": 0,
+      "id": 1,
+      "links": [],
+      "panels": [
+        {
+          "aliasColors": {},
+          "bars": false,
+          "dashLength": 10,
+          "dashes": false,
+          "datasource": "Prometheus",
+          "fieldConfig": {
+            "defaults": {
+              "custom": {}
+            },
+            "overrides": []
+          },
+          "fill": 1,
+          "fillGradient": 0,
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 0
+          },
+          "hiddenSeries": false,
+          "id": 2,
+          "legend": {
+            "avg": false,
+            "current": false,
+            "max": false,
+            "min": false,
+            "show": true,
+            "total": false,
+            "values": false
+          },
+          "lines": true,
+          "linewidth": 1,
+          "nullPointMode": "null",
+          "options": {
+            "alertThreshold": true
+          },
+          "percentage": false,
+          "pluginVersion": "7.2.0",
+          "pointradius": 2,
+          "points": false,
+          "renderer": "flot",
+          "seriesOverrides": [],
+          "spaceLength": 10,
+          "stack": false,
+          "steppedLine": false,
+          "targets": [
+            {
+              "expr": "sum(rate(http_requests_total[5m])) by (service)",
+              "interval": "",
+              "legendFormat": "{{service}}",
+              "refId": "A"
+            }
+          ],
+          "thresholds": [],
+          "timeFrom": null,
+          "timeRegions": [],
+          "timeShift": null,
+          "title": "Request Rate by Service",
+          "tooltip": {
+            "shared": true,
+            "sort": 0,
+            "value_type": "individual"
+          },
+          "type": "graph",
+          "xaxis": {
+            "buckets": null,
+            "mode": "time",
+            "name": null,
+            "show": true,
+            "values": []
+          },
+          "yaxes": [
+            {
+              "format": "short",
+              "label": null,
+              "logBase": 1,
+              "max": null,
+              "min": null,
+              "show": true
+            },
+            {
+              "format": "short",
+              "label": null,
+              "logBase": 1,
+              "max": null,
+              "min": null,
+              "show": true
+            }
+          ],
+          "yaxis": {
+            "align": false,
+            "alignLevel": null
+          }
+        }
+      ],
+      "schemaVersion": 26,
+      "style": "dark",
+      "tags": [],
+      "templating": {
+        "list": []
+      },
+      "time": {
+        "from": "now-6h",
+        "to": "now"
+      },
+      "timepicker": {},
+      "timezone": "",
+      "title": "Microservices Overview",
+      "uid": "microservices",
+      "version": 1
+    }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fluentd-config
+  namespace: zionix-observability
+data:
+  fluent.conf: |
+    <source>
+      @type tail
+      path /var/log/containers/*.log
+      pos_file /var/log/fluentd-containers.log.pos
+      tag kubernetes.*
+      read_from_head true
+      <parse>
+        @type json
+        time_format %Y-%m-%dT%H:%M:%S.%NZ
+      </parse>
+    </source>
+
+    <filter kubernetes.**>
+      @type kubernetes_metadata
+      kubernetes_url https://kubernetes.default.svc
+      bearer_token_file /var/run/secrets/kubernetes.io/serviceaccount/token
+      ca_file /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+    </filter>
+
+    <match kubernetes.var.log.containers.**zionix**.log>
+      @type elasticsearch
+      host elasticsearch-master.zionix-observability
+      port 9200
+      logstash_format true
+      logstash_prefix zionix-logs
+      <buffer>
+        @type file
+        path /var/log/fluentd-buffers/kubernetes.system.buffer
+        flush_mode interval
+        retry_type exponential_backoff
+        flush_thread_count 2
+        flush_interval 5s
+        retry_forever true
+        retry_max_interval 30
+        chunk_limit_size 2M
+        queue_limit_length 8
+        overflow_action block
+      </buffer>
+    </match>
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: jaeger-config
+  namespace: zionix-observability
+data:
+  collector.yaml: |
+    collector:
+      zipkin:
+        host_port: :9411
+      otlp:
+        enabled: true
+    sampling:
+      strategies:
+        - service_name: "*"
+          type: probabilistic
+          param: 0.1
+        - service_name: "critical-service"
+          type: probabilistic
+          param: 1.0
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: microservices-monitor
+  namespace: zionix-observability
+spec:
+  selector:
+    matchLabels:
+      tier: microservice
+  endpoints:
+    - port: metrics
+      interval: 15s
+      path: /metrics
+  namespaceSelector:
+    matchNames:
+      - zionix-dev
+      - zionix-staging
+      - zionix-prod
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: microservices-alerts
+  namespace: zionix-observability
+spec:
+  groups:
+    - name: microservices
+      rules:
+        - alert: HighErrorRate
+          expr: sum(rate(http_requests_total{status=~"5.."}[5m])) by (service) / sum(rate(http_requests_total[5m])) by (service) > 0.05
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "High error rate for {{ $labels.service }}"
+            description: "Service {{ $labels.service }} has a high error rate: {{ $value | humanizePercentage }}"
+        - alert: SlowResponseTime
+          expr: histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (service, le)) > 2
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Slow response time for {{ $labels.service }}"
+            description: "Service {{ $labels.service }} has a 95th percentile response time above 2 seconds: {{ $value }} seconds"
+        - alert: HighCPUUsage
+          expr: sum(rate(container_cpu_usage_seconds_total{container!=""}[5m])) by (pod) / sum(container_spec_cpu_quota{container!=""}/container_spec_cpu_period{container!=""}) by (pod) > 0.8
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "High CPU usage for {{ $labels.pod }}"
+            description: "Pod {{ $labels.pod }} is using {{ $value | humanizePercentage }} of its CPU quota"
+        - alert: HighMemoryUsage
+          expr: sum(container_memory_working_set_bytes{container!=""}) by (pod) / sum(container_spec_memory_limit_bytes{container!=""}) by (pod) > 0.8
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "High memory usage for {{ $labels.pod }}"
+            description: "Pod {{ $labels.pod }} is using {{ $value | humanizePercentage }} of its memory quota"

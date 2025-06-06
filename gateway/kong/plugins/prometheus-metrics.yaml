@@ -1,0 +1,41 @@
+apiVersion: configuration.konghq.com/v1
+kind: KongPlugin
+metadata:
+  name: prometheus-metrics
+  namespace: zionix
+config:
+  status_code_metrics: true
+  latency_metrics: true
+  bandwidth_metrics: true
+  upstream_health_metrics: true
+plugin: prometheus
+---
+apiVersion: configuration.konghq.com/v1
+kind: KongClusterPlugin
+metadata:
+  name: prometheus-global
+  annotations:
+    kubernetes.io/ingress.class: kong
+config:
+  status_code_metrics: true
+  latency_metrics: true
+  bandwidth_metrics: true
+  upstream_health_metrics: true
+plugin: prometheus
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kong-prometheus-service
+  namespace: zionix
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8100"
+spec:
+  selector:
+    app: kong
+  ports:
+  - name: metrics
+    port: 8100
+    targetPort: 8100
+  type: ClusterIP

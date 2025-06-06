@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auth-service
+spec:
+  replicas: 2
+  template:
+    spec:
+      containers:
+      - name: auth-service
+        resources:
+          limits:
+            cpu: "750m"
+            memory: "768Mi"
+          requests:
+            cpu: "300m"
+            memory: "384Mi"
+        env:
+        - name: ENVIRONMENT
+          valueFrom:
+            configMapKeyRef:
+              name: auth-service-config
+              key: ENVIRONMENT
+        - name: LOG_LEVEL
+          valueFrom:
+            configMapKeyRef:
+              name: auth-service-config
+              key: LOG_LEVEL

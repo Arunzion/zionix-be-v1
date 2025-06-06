@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: zionix-dev
+  labels:
+    name: zionix-dev
+    environment: development

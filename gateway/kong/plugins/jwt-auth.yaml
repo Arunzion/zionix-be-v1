@@ -1,0 +1,33 @@
+apiVersion: configuration.konghq.com/v1
+kind: KongPlugin
+metadata:
+  name: jwt-auth
+  namespace: zionix
+config:
+  secret_is_base64: false
+  claims_to_verify:
+    - exp
+  key_claim_name: kid
+  run_on_preflight: true
+plugin: jwt
+---
+apiVersion: configuration.konghq.com/v1
+kind: KongConsumer
+metadata:
+  name: zionix-frontend
+  namespace: zionix
+username: zionix-frontend
+credentials:
+  - jwt-auth
+---
+apiVersion: configuration.konghq.com/v1
+kind: KongCredential
+metadata:
+  name: jwt-auth
+  namespace: zionix
+type: jwt
+consumerRef: zionix-frontend
+config:
+  key: "zionix-frontend"
+  algorithm: "HS256"
+  secret: "${JWT_SECRET}"

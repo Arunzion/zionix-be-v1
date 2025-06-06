@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: zionix-staging
+  labels:
+    name: zionix-staging
+    environment: staging
